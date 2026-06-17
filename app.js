@@ -146,8 +146,11 @@ const PRIORITY_META = {
     low:    { label: '낮음' },
 };
 
-let todos        = [];
-let addFormColor = null;
+const PRIORITY_ORDER = { high: 0, normal: 1, low: 2 };
+
+let todos          = [];
+let addFormColor   = null;
+let priorityFilter = 'all';
 
 const todoInput         = document.getElementById('todoInput');
 const addBtn            = document.getElementById('addBtn');
@@ -163,6 +166,13 @@ document.addEventListener('click', () => {
 
 prioritySelectEl.addEventListener('change', () => {
     prioritySelectEl.dataset.priority = prioritySelectEl.value;
+});
+
+const priorityFilterEl = document.getElementById('priorityFilter');
+priorityFilterEl.addEventListener('change', () => {
+    priorityFilter = priorityFilterEl.value;
+    priorityFilterEl.dataset.priority = priorityFilter === 'all' ? '' : priorityFilter;
+    renderTodos();
 });
 
 /* ── Color Picker factory ── */
@@ -255,19 +265,28 @@ function buildPriorityOptions(selected) {
 function renderTodos() {
     todoList.innerHTML = '';
 
-    if (todos.length === 0) {
-        todoList.innerHTML = '<li class="empty-msg">할 일을 추가해보세요 ✏️</li>';
+    const display = [...todos]
+        .sort((a, b) => {
+            const p = PRIORITY_ORDER[a.priority ?? 'normal'] - PRIORITY_ORDER[b.priority ?? 'normal'];
+            return p !== 0 ? p : (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        })
+        .filter(t => priorityFilter === 'all' || t.priority === priorityFilter);
+
+    if (display.length === 0) {
+        const msg = todos.length === 0
+            ? '할 일을 추가해보세요 ✏️'
+            : '해당 우선순위의 할 일이 없습니다';
+        todoList.innerHTML = `<li class="empty-msg">${msg}</li>`;
         todoFooter.style.display = 'none';
         return;
     }
 
-    todos.forEach((todo, index) => {
+    display.forEach((todo) => {
         const { priority = 'normal', completed, text, color, id } = todo;
 
         const li = document.createElement('li');
         li.className        = 'todo-item' + (completed ? ' completed' : '');
         li.dataset.priority = priority;
-        li.dataset.index    = index;
         li.dataset.todoId   = id;
         if (color) li.dataset.color = color;
         li.draggable = true;
@@ -276,14 +295,15 @@ function renderTodos() {
         checkBtn.className = 'check-btn' + (completed ? ' checked' : '');
         checkBtn.setAttribute('aria-label', '완료 체크');
         checkBtn.textContent = completed ? '✓' : '';
-        checkBtn.addEventListener('click', () => toggleTodo(index));
+        checkBtn.addEventListener('click', () => toggleTodo(id));
 
         const textSpan = document.createElement('span');
         textSpan.className   = 'todo-text';
         textSpan.textContent = text;
 
         const colorPicker = createColorPicker(color || null, async (colorId) => {
-            todos[index].color = colorId;
+            const t = todos.find(t => t.id === id);
+            if (t) t.color = colorId;
             if (colorId) li.dataset.color = colorId;
             else         delete li.dataset.color;
             await db.from('todos').update({ color: colorId || null }).eq('id', id);
@@ -295,17 +315,17 @@ function renderTodos() {
         prioritySel.dataset.priority = priority;
         prioritySel.innerHTML        = buildPriorityOptions(priority);
         prioritySel.addEventListener('change', async () => {
-            todos[index].priority        = prioritySel.value;
-            prioritySel.dataset.priority = prioritySel.value;
-            li.dataset.priority          = prioritySel.value;
+            const t = todos.find(t => t.id === id);
+            if (t) t.priority = prioritySel.value;
             await db.from('todos').update({ priority: prioritySel.value }).eq('id', id);
+            renderTodos();
         });
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
         deleteBtn.setAttribute('aria-label', '삭제');
         deleteBtn.textContent = '✕';
-        deleteBtn.addEventListener('click', () => deleteTodo(index));
+        deleteBtn.addEventListener('click', () => deleteTodo(id));
 
         li.append(checkBtn, textSpan, colorPicker, prioritySel, deleteBtn);
         todoList.appendChild(li);
@@ -336,21 +356,21 @@ async function addTodo() {
     todoInput.focus();
 }
 
-async function toggleTodo(index) {
-    const todo = todos[index];
+async function toggleTodo(id) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
     const next = !todo.completed;
-    const { error } = await db.from('todos').update({ completed: next }).eq('id', todo.id);
+    const { error } = await db.from('todos').update({ completed: next }).eq('id', id);
     if (!error) {
-        todos[index].completed = next;
+        todo.completed = next;
         renderTodos();
     }
 }
 
-async function deleteTodo(index) {
-    const id = todos[index].id;
+async function deleteTodo(id) {
     const { error } = await db.from('todos').delete().eq('id', id);
     if (!error) {
-        todos.splice(index, 1);
+        todos = todos.filter(t => t.id !== id);
         renderTodos();
         renderPlanner();
     }
