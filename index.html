@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo & Pomodoro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body data-mode="work">
+    <div class="app-wrapper">
+        <div class="header-row">
+            <h1 class="app-title">Todo & Pomodoro</h1>
+            <button id="themeToggle" class="theme-toggle" aria-label="다크/라이트 모드 전환">🌙</button>
+        </div>
+
+        <div class="main-layout">
+            <!-- Left: Todo Section -->
+            <section class="todo-section">
+                <h2>할 일 목록</h2>
+
+                <div class="todo-input-wrap">
+                    <input
+                        type="text"
+                        id="todoInput"
+                        placeholder="할 일을 입력하고 Enter 또는 추가 버튼을 누르세요"
+                        maxlength="100"
+                        autocomplete="off"
+                    >
+                    <button id="addBtn">추가</button>
+                </div>
+
+                <div class="add-options">
+                    <select id="prioritySelect" data-priority="normal">
+                        <option value="high">높음</option>
+                        <option value="normal" selected>보통</option>
+                        <option value="low">낮음</option>
+                    </select>
+                    <!-- #addColorPicker injected by JS -->
+                </div>
+
+                <ul class="todo-list" id="todoList"></ul>
+
+                <div class="todo-footer" id="todoFooter" style="display:none;">
+                    <span id="todoCount"></span>
+                    <button id="clearCompletedBtn">완료 항목 삭제</button>
+                </div>
+            </section>
+
+            <!-- Right column -->
+            <div class="right-column">
+                <!-- Top right: Pomodoro (compact) -->
+                <section class="pomodoro-section">
+                    <div class="pomodoro-modes">
+                        <button class="mode-btn active" data-mode="work">집중 25분</button>
+                        <button class="mode-btn" data-mode="short">짧은 휴식 5분</button>
+                        <button class="mode-btn" data-mode="long">긴 휴식 15분</button>
+                    </div>
+
+                    <div class="timer-display">
+                        <div class="timer-ring">
+                            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                                <circle class="ring-bg" cx="100" cy="100" r="88"/>
+                                <circle class="ring-progress" id="progressRing" cx="100" cy="100" r="88"/>
+                            </svg>
+                            <div class="timer-time" id="timerDisplay">25:00</div>
+                        </div>
+                    </div>
+
+                    <div class="timer-controls">
+                        <button class="ctrl-btn" id="startBtn">시작</button>
+                        <button class="ctrl-btn secondary" id="resetBtn">초기화</button>
+                    </div>
+                </section>
+
+                <!-- Bottom right: 10-Min Planner -->
+                <section class="planner-section">
+                    <div class="planner-header">
+                        <h2>10분 플래너</h2>
+                        <div class="hour-nav">
+                            <button id="prevHour" aria-label="이전 시간">&#9664;</button>
+                            <span id="currentHourLabel">00:00 ~ 00:50</span>
+                            <button id="nextHour" aria-label="다음 시간">&#9654;</button>
+                        </div>
+                    </div>
+                    <p class="planner-hint">할 일 항목을 드래그해서 시간 칸에 놓으세요</p>
+                    <div class="planner-slots" id="plannerSlots"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
