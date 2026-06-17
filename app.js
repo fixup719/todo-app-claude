@@ -20,6 +20,13 @@ document.getElementById('githubLoginBtn').addEventListener('click', () => {
     });
 });
 
+document.getElementById('googleLoginBtn').addEventListener('click', () => {
+    db.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href },
+    });
+});
+
 function showAuthScreen() {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('appContent').style.display = 'none';

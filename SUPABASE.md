@@ -131,28 +131,105 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 ---
 
-## 8. GitHub OAuth 인증 설정
+## 8. 소셜 로그인 (OAuth) 설정
 
-### 8-1. GitHub OAuth App 생성
+### 8-0. Supabase 콜백 URL 확인 (공통)
+
+모든 Provider 설정 전 먼저 Supabase 콜백 URL을 확인한다.
+
+1. Supabase 대시보드 → 프로젝트 선택
+2. **Authentication** → **Providers** → 설정할 Provider 클릭
+3. 화면의 **Callback URL (for OAuth)** 복사
+   ```
+   https://sitahrrjitwfsnwfjfme.supabase.co/auth/v1/callback
+   ```
+
+---
+
+### 8-1. GitHub OAuth 설정
+
+#### GitHub OAuth App 생성
 
 1. [https://github.com/settings/developers](https://github.com/settings/developers) 접속
 2. **OAuth Apps** → **New OAuth App** 클릭
 3. 다음 값 입력:
-   - **Application name**: `todo-app-claude` (원하는 이름)
+   - **Application name**: `todo-app-claude`
    - **Homepage URL**: `https://fixup719.github.io/todo-app-claude/`
-   - **Authorization callback URL**: Supabase 대시보드에서 복사 (아래 참고)
+   - **Authorization callback URL**: 8-0에서 복사한 Supabase 콜백 URL
+     ```
+     https://sitahrrjitwfsnwfjfme.supabase.co/auth/v1/callback
+     ```
+     > ⚠️ 이 칸에는 반드시 **Supabase 콜백 URL**만 입력. `localhost`를 넣으면 인증 후 연결 거부 오류 발생.
 4. **Register application** 클릭
-5. **Client ID** 복사, **Generate a new client secret** 클릭 후 **Client Secret** 복사
+5. **Client ID** 복사 → **Generate a new client secret** → **Client Secret** 복사
 
-### 8-2. Supabase에서 GitHub Provider 활성화
+#### Supabase에 GitHub 정보 입력
 
-1. Supabase 대시보드 → **Authentication** → **Providers**
-2. **GitHub** 클릭 → **Enable** 토글 켜기
-3. **Callback URL (for OAuth)** 값을 복사 → GitHub OAuth App의 **Authorization callback URL**에 붙여넣기
-4. GitHub에서 복사한 **Client ID** / **Client Secret** 입력
-5. **Save** 클릭
+1. Supabase 대시보드 → **Authentication** → **Providers** → **GitHub**
+2. **Enable** 토글 켜기
+3. **Client ID** / **Client Secret** 붙여넣기 → **Save**
 
-### 8-3. DB 마이그레이션 — user_id 컬럼 추가
+---
+
+### 8-2. Google OAuth 설정
+
+#### Google Cloud Console에서 OAuth 앱 생성
+
+1. [https://console.cloud.google.com](https://console.cloud.google.com) 접속 (Google 계정으로 로그인)
+2. 상단 프로젝트 선택 → **새 프로젝트** 생성 (또는 기존 프로젝트 선택)
+3. 왼쪽 햄버거 메뉴(≡) → **APIs & Services** → **Credentials** 클릭
+4. 상단 **+ CREATE CREDENTIALS** 버튼 → **OAuth client ID** 선택
+
+   > ⚠️ "OAuth consent screen이 설정되지 않았습니다" 경고가 뜨면 **CONFIGURE CONSENT SCREEN** 클릭:
+   > - User Type: **External** → **CREATE**
+   > - App name: `todo-app-claude`, User support email / Developer contact: 본인 Gmail 입력
+   > - **SAVE AND CONTINUE** 를 3번 눌러 끝까지 통과
+
+5. **Application type**: `Web application`, **Name**: `todo-app-claude`
+6. **Authorized redirect URIs** → **+ ADD URI** 클릭 후 입력:
+   ```
+   https://sitahrrjitwfsnwfjfme.supabase.co/auth/v1/callback
+   ```
+7. **CREATE** 클릭 → 팝업에 표시된 **Client ID**와 **Client Secret** 복사
+
+#### Supabase에 Google 정보 입력
+
+1. Supabase 대시보드 → **Authentication** → **Providers** → **Google**
+2. **Enable** 토글 켜기
+3. **Client ID** / **Client Secret** 붙여넣기 → **Save**
+
+---
+
+### 8-3. Supabase 리다이렉트 URL 허용 (공통)
+
+인증 완료 후 Supabase가 앱으로 되돌아올 수 있도록 허용 URL을 등록한다. GitHub / Google 공통 설정.
+
+1. Supabase → **Authentication** → **URL Configuration**
+2. **Site URL**: `https://fixup719.github.io/todo-app-claude/`
+3. **Redirect URLs**에 아래 추가 (로컬 개발용 포함):
+   ```
+   https://fixup719.github.io/todo-app-claude/
+   http://localhost:5500
+   http://127.0.0.1:5500
+   ```
+4. **Save** 클릭
+
+> 인증 흐름: `앱 → Provider(GitHub / Google) → Supabase 콜백 URL → 앱`
+
+---
+
+### 8-4. 트러블슈팅: "localhost에서 연결을 거부했습니다"
+
+OAuth 인증 후 이 오류가 뜨면 아래 두 항목을 확인:
+
+| 확인 항목 | 올바른 값 |
+|-----------|-----------|
+| Provider OAuth App → Callback URL | `https://sitahrrjitwfsnwfjfme.supabase.co/auth/v1/callback` |
+| Supabase → Redirect URLs | 앱 URL (localhost 또는 GitHub Pages URL) |
+
+---
+
+### 8-5. DB 마이그레이션 — user_id 컬럼 추가
 
 인증 적용 후 각 사용자가 자신의 데이터만 보도록 테이블에 `user_id` 컬럼과 RLS 정책을 업데이트한다.
 
@@ -192,6 +269,21 @@ create policy "users own slots" on planner_slots
 ```
 
 > `default auth.uid()` 덕분에 앱 코드에서 `user_id`를 매번 명시하지 않아도 Supabase가 로그인한 사용자의 UUID를 자동으로 설정한다. RLS가 SELECT/UPDATE/DELETE도 자동으로 필터링한다.
+
+---
+
+### 8-6. CORS 확인 (필요 시)
+
+배포 후 브라우저 콘솔에서 CORS 오류가 발생하면:
+
+1. Supabase 대시보드 → **Project Settings** → **API** → **Allowed Origins**
+2. 아래 URL 추가:
+   ```
+   https://fixup719.github.io
+   ```
+3. **Save** 클릭
+
+> 기본 설정에서는 Supabase가 모든 origin을 허용하므로 대부분 이 단계는 불필요.
 
 ---
 
