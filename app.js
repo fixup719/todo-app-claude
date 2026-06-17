@@ -8,6 +8,53 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
 /* =====================================================================
+   AUTH
+   ===================================================================== */
+
+let currentUser = null;
+
+document.getElementById('githubLoginBtn').addEventListener('click', () => {
+    db.auth.signInWithOAuth({
+        provider: 'github',
+        options: { redirectTo: window.location.href },
+    });
+});
+
+function showAuthScreen() {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('appContent').style.display = 'none';
+}
+
+function showApp(user) {
+    currentUser = user;
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('appContent').style.display = 'block';
+
+    const avatarUrl = user.user_metadata?.avatar_url;
+    const userName  = user.user_metadata?.user_name || user.email;
+    const userInfo  = document.getElementById('userInfo');
+    userInfo.innerHTML = `
+        ${avatarUrl ? `<img src="${avatarUrl}" class="user-avatar" alt="">` : ''}
+        <span class="user-name">${userName}</span>
+        <button class="sign-out-btn" id="signOutBtn">로그아웃</button>
+    `;
+    document.getElementById('signOutBtn').addEventListener('click', () => db.auth.signOut());
+}
+
+db.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+        showApp(session.user);
+        init();
+    } else {
+        currentUser = null;
+        todos = [];
+        plannerData = {};
+        showAuthScreen();
+    }
+});
+
+
+/* =====================================================================
    THEME TOGGLE
    ===================================================================== */
 
@@ -346,6 +393,7 @@ async function addTodo() {
         priority:   prioritySelectEl.value,
         color:      addFormColor || null,
         sort_order: -1,
+        user_id:    currentUser.id,
     };
     const { data, error } = await db.from('todos').insert(newTodo).select().single();
     if (error) { console.error(error); return; }
@@ -489,8 +537,8 @@ function escapeHtml(str) {
 async function assignSlot(key, todoId) {
     const { slot_date, slot_hour, slot_minute } = parseSlotKey(key);
     const { error } = await db.from('planner_slots').upsert(
-        { slot_date, slot_hour, slot_minute, todo_id: todoId },
-        { onConflict: 'slot_date,slot_hour,slot_minute' }
+        { slot_date, slot_hour, slot_minute, todo_id: todoId, user_id: currentUser.id },
+        { onConflict: 'user_id,slot_date,slot_hour,slot_minute' }
     );
     if (!error) {
         plannerData[key] = todoId;
@@ -615,4 +663,4 @@ async function init() {
     renderPlanner();
 }
 
-init();
+/* init()은 onAuthStateChange에서 로그인 확인 후 호출됨 */
