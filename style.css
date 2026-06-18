@@ -149,6 +149,22 @@ body {
 .google-login-btn:hover  { box-shadow: 0 2px 8px rgba(0,0,0,0.15); transform: translateY(-2px); }
 .google-login-btn:active { transform: translateY(0); }
 
+.guest-login-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 28px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    width: 100%;
+    transition: color 0.2s, border-color 0.2s;
+}
+.guest-login-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
 /* ── Header ── */
 .header-row {
     display: flex;

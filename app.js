@@ -12,6 +12,7 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    ===================================================================== */
 
 let currentUser = null;
+let isGuestMode = false;
 
 document.getElementById('githubLoginBtn').addEventListener('click', () => {
     db.auth.signInWithOAuth({
@@ -27,6 +28,17 @@ document.getElementById('googleLoginBtn').addEventListener('click', () => {
     });
 });
 
+document.getElementById('guestLoginBtn').addEventListener('click', () => {
+    isGuestMode = true;
+    showApp(null);
+    init();
+});
+
+function saveGuestData() {
+    localStorage.setItem('guestTodos', JSON.stringify(todos));
+    localStorage.setItem('guestPlannerData', JSON.stringify(plannerData));
+}
+
 function showAuthScreen() {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('appContent').style.display = 'none';
@@ -37,18 +49,33 @@ function showApp(user) {
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('appContent').style.display = 'block';
 
-    const avatarUrl = user.user_metadata?.avatar_url;
-    const userName  = user.user_metadata?.user_name || user.email;
-    const userInfo  = document.getElementById('userInfo');
-    userInfo.innerHTML = `
-        ${avatarUrl ? `<img src="${avatarUrl}" class="user-avatar" alt="">` : ''}
-        <span class="user-name">${userName}</span>
-        <button class="sign-out-btn" id="signOutBtn">로그아웃</button>
-    `;
-    document.getElementById('signOutBtn').addEventListener('click', () => db.auth.signOut());
+    const userInfo = document.getElementById('userInfo');
+    if (isGuestMode) {
+        userInfo.innerHTML = `
+            <span class="user-name">게스트 모드</span>
+            <button class="sign-out-btn" id="signOutBtn">로그인</button>
+        `;
+        document.getElementById('signOutBtn').addEventListener('click', () => {
+            isGuestMode = false;
+            currentUser = null;
+            todos = [];
+            plannerData = {};
+            showAuthScreen();
+        });
+    } else {
+        const avatarUrl = user.user_metadata?.avatar_url;
+        const userName  = user.user_metadata?.user_name || user.email;
+        userInfo.innerHTML = `
+            ${avatarUrl ? `<img src="${avatarUrl}" class="user-avatar" alt="">` : ''}
+            <span class="user-name">${userName}</span>
+            <button class="sign-out-btn" id="signOutBtn">로그아웃</button>
+        `;
+        document.getElementById('signOutBtn').addEventListener('click', () => db.auth.signOut());
+    }
 }
 
 db.auth.onAuthStateChange((event, session) => {
+    if (isGuestMode) return;
     if (session?.user) {
         showApp(session.user);
         init();
@@ -212,14 +239,9 @@ const todoList          = document.getElementById('todoList');
 const todoCount         = document.getElementById('todoCount');
 const todoFooter        = document.getElementById('todoFooter');
 const clearCompletedBtn = document.getElementById('clearCompletedBtn');
-const prioritySelectEl  = document.getElementById('prioritySelect');
 
 document.addEventListener('click', () => {
     document.querySelectorAll('.color-picker.open').forEach(p => p.classList.remove('open'));
-});
-
-prioritySelectEl.addEventListener('change', () => {
-    prioritySelectEl.dataset.priority = prioritySelectEl.value;
 });
 
 const priorityFilterEl = document.getElementById('priorityFilter');
@@ -304,8 +326,13 @@ const addOptionsEl   = document.querySelector('.add-options');
 const addColorPicker = createColorPicker(null, (colorId) => { addFormColor = colorId; });
 addOptionsEl.appendChild(addColorPicker);
 
-/* todos 배열 순서를 DB에 반영 */
+/* todos 배열 순서를 DB(또는 localStorage)에 반영 */
 async function saveSortOrders() {
+    if (isGuestMode) {
+        todos.forEach((t, i) => { t.sort_order = i; });
+        saveGuestData();
+        return;
+    }
     const updates = todos.map((t, i) => ({ id: t.id, sort_order: i }));
     await db.from('todos').upsert(updates, { onConflict: 'id' });
 }
@@ -360,7 +387,11 @@ function renderTodos() {
             if (t) t.color = colorId;
             if (colorId) li.dataset.color = colorId;
             else         delete li.dataset.color;
-            await db.from('todos').update({ color: colorId || null }).eq('id', id);
+            if (isGuestMode) {
+                saveGuestData();
+            } else {
+                await db.from('todos').update({ color: colorId || null }).eq('id', id);
+            }
             renderPlanner();
         });
 
@@ -371,7 +402,11 @@ function renderTodos() {
         prioritySel.addEventListener('change', async () => {
             const t = todos.find(t => t.id === id);
             if (t) t.priority = prioritySel.value;
-            await db.from('todos').update({ priority: prioritySel.value }).eq('id', id);
+            if (isGuestMode) {
+                saveGuestData();
+            } else {
+                await db.from('todos').update({ priority: prioritySel.value }).eq('id', id);
+            }
             renderTodos();
         });
 
@@ -397,15 +432,20 @@ async function addTodo() {
         id:         Date.now(),
         text,
         completed:  false,
-        priority:   prioritySelectEl.value,
+        priority:   'normal',
         color:      addFormColor || null,
         sort_order: -1,
-        user_id:    currentUser.id,
+        user_id:    isGuestMode ? 'guest' : currentUser.id,
     };
-    const { data, error } = await db.from('todos').insert(newTodo).select().single();
-    if (error) { console.error('addTodo error:', error); alert('추가 실패: ' + error.message); return; }
-    todos.unshift(data);
-    await saveSortOrders();
+    if (isGuestMode) {
+        todos.unshift(newTodo);
+        await saveSortOrders();
+    } else {
+        const { data, error } = await db.from('todos').insert(newTodo).select().single();
+        if (error) { console.error('addTodo error:', error); alert('추가 실패: ' + error.message); return; }
+        todos.unshift(data);
+        await saveSortOrders();
+    }
     renderTodos();
     todoInput.value = '';
     todoInput.focus();
@@ -415,6 +455,12 @@ async function toggleTodo(id) {
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
     const next = !todo.completed;
+    if (isGuestMode) {
+        todo.completed = next;
+        saveGuestData();
+        renderTodos();
+        return;
+    }
     const { error } = await db.from('todos').update({ completed: next }).eq('id', id);
     if (!error) {
         todo.completed = next;
@@ -423,6 +469,14 @@ async function toggleTodo(id) {
 }
 
 async function deleteTodo(id) {
+    if (isGuestMode) {
+        todos = todos.filter(t => t.id !== id);
+        Object.keys(plannerData).forEach(k => { if (plannerData[k] === id) delete plannerData[k]; });
+        saveGuestData();
+        renderTodos();
+        renderPlanner();
+        return;
+    }
     const { error } = await db.from('todos').delete().eq('id', id);
     if (!error) {
         todos = todos.filter(t => t.id !== id);
@@ -432,6 +486,15 @@ async function deleteTodo(id) {
 }
 
 async function clearCompleted() {
+    if (isGuestMode) {
+        const completedIds = new Set(todos.filter(t => t.completed).map(t => t.id));
+        todos = todos.filter(t => !t.completed);
+        Object.keys(plannerData).forEach(k => { if (completedIds.has(plannerData[k])) delete plannerData[k]; });
+        saveGuestData();
+        renderTodos();
+        renderPlanner();
+        return;
+    }
     const { error } = await db.from('todos').delete().eq('completed', true);
     if (!error) {
         todos = todos.filter(t => !t.completed);
@@ -542,6 +605,12 @@ function escapeHtml(str) {
 }
 
 async function assignSlot(key, todoId) {
+    if (isGuestMode) {
+        plannerData[key] = todoId;
+        saveGuestData();
+        renderPlanner();
+        return;
+    }
     const { slot_date, slot_hour, slot_minute } = parseSlotKey(key);
     const { error } = await db.from('planner_slots').upsert(
         { slot_date, slot_hour, slot_minute, todo_id: todoId, user_id: currentUser.id },
@@ -554,9 +623,14 @@ async function assignSlot(key, todoId) {
 }
 
 async function removeSlot(key) {
-    const { slot_date, slot_hour, slot_minute } = parseSlotKey(key);
     delete plannerData[key];
+    if (isGuestMode) {
+        saveGuestData();
+        renderPlanner();
+        return;
+    }
     renderPlanner();
+    const { slot_date, slot_hour, slot_minute } = parseSlotKey(key);
     await db.from('planner_slots')
         .delete()
         .eq('slot_date', slot_date)
@@ -577,15 +651,19 @@ function renderPlanner() {
         const assignedTodo = assignedId != null ? getTodoById(assignedId) : null;
 
         if (assignedId != null && !assignedTodo) {
-            /* 삭제된 todo가 배치된 슬롯 — 로컬 즉시 정리, DB는 비동기 */
+            /* 삭제된 todo가 배치된 슬롯 — 로컬 즉시 정리 */
             delete plannerData[key];
-            const p = parseSlotKey(key);
-            db.from('planner_slots')
-                .delete()
-                .eq('slot_date', p.slot_date)
-                .eq('slot_hour', p.slot_hour)
-                .eq('slot_minute', p.slot_minute)
-                .then();
+            if (isGuestMode) {
+                saveGuestData();
+            } else {
+                const p = parseSlotKey(key);
+                db.from('planner_slots')
+                    .delete()
+                    .eq('slot_date', p.slot_date)
+                    .eq('slot_hour', p.slot_hour)
+                    .eq('slot_minute', p.slot_minute)
+                    .then();
+            }
             return;
         }
 
@@ -651,6 +729,14 @@ document.getElementById('nextHour').addEventListener('click', () => {
    ===================================================================== */
 
 async function init() {
+    if (isGuestMode) {
+        todos = JSON.parse(localStorage.getItem('guestTodos') || '[]');
+        plannerData = JSON.parse(localStorage.getItem('guestPlannerData') || '{}');
+        renderTodos();
+        renderPlanner();
+        return;
+    }
+
     const today = getTodayStr();
 
     const [{ data: todosData }, { data: slotsData }] = await Promise.all([
