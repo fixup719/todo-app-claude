@@ -403,7 +403,7 @@ async function addTodo() {
         user_id:    currentUser.id,
     };
     const { data, error } = await db.from('todos').insert(newTodo).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addTodo error:', error); alert('추가 실패: ' + error.message); return; }
     todos.unshift(data);
     await saveSortOrders();
     renderTodos();
