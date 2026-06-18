@@ -500,7 +500,7 @@ todoList.addEventListener('drop', async (e) => {
 });
 
 addBtn.addEventListener('click', addTodo);
-todoInput.addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+todoInput.addEventListener('keyup', e => { if (e.key === 'Enter' && !e.isComposing) addTodo(); });
 clearCompletedBtn.addEventListener('click', clearCompleted);
 
 
