@@ -435,7 +435,6 @@ async function addTodo() {
         priority:   'normal',
         color:      addFormColor || null,
         sort_order: -1,
-        user_id:    isGuestMode ? 'guest' : currentUser.id,
     };
     if (isGuestMode) {
         todos.unshift(newTodo);
@@ -613,8 +612,8 @@ async function assignSlot(key, todoId) {
     }
     const { slot_date, slot_hour, slot_minute } = parseSlotKey(key);
     const { error } = await db.from('planner_slots').upsert(
-        { slot_date, slot_hour, slot_minute, todo_id: todoId, user_id: currentUser.id },
-        { onConflict: 'user_id,slot_date,slot_hour,slot_minute' }
+        { slot_date, slot_hour, slot_minute, todo_id: todoId },
+        { onConflict: 'slot_date,slot_hour,slot_minute' }
     );
     if (!error) {
         plannerData[key] = todoId;

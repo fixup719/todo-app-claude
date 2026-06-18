@@ -412,7 +412,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }
 
 /* ── Select (priority only) ── */
@@ -537,18 +537,12 @@ select[data-priority="low"]    { border-color: #3498db; color: #3498db; }
     line-height: 1;
 }
 
-/* ── Filter bar ── */
-.filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-}
-
+/* ── Filter label (in add-options row) ── */
 .filter-label {
     font-size: 0.78rem;
     color: var(--text-muted);
     white-space: nowrap;
+    margin-left: auto;
 }
 
 #priorityFilter {
